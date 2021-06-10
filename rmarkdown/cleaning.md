@@ -871,3 +871,307 @@ ggplot(sal, aes(x=log(AnnualSalary))) +
 ```
 
 ![](cleaning_files/figure-gfm/unnamed-chunk-23-1.png)<!-- -->
+
+``` r
+quantile(sal$AnnualSalary)
+```
+
+    ##     0%    25%    50%    75%   100% 
+    ##    900  33354  48126  68112 238772
+
+##### 15. Convert `HireDate` to the `Date` class - plot Annual Salary vs Hire Date. Use `AnnualSalary ~ HireDate` with a `data = sal` argument in plot or use x, y notation in `scatter.smooth`
+
+Use `lubridate` package. Is it `mdy(date)` or `dmy(date)` for this data
+- look at `HireDate`
+
+``` r
+sal <- sal %>% mutate(HireDate = lubridate::mdy(HireDate))
+
+ggplot(sal, aes(HireDate, AnnualSalary)) +
+  geom_point() +
+  geom_smooth(method="auto", se=TRUE, fullrange=FALSE,
+  level=0.95)
+```
+
+![](cleaning_files/figure-gfm/unnamed-chunk-24-1.png)<!-- -->
+
+##### 16. Create a smaller dataset that only includes the Police Department, Fire Department and Sheriff’s Office. Use the Agency variable with string matching. Call this `emer`. How many employees are in this new dataset?
+
+``` r
+emer <- sal %>% filter(str_detect(
+  Agency, "Police Department | Fire Department | 
+  Sheriff's Office"))
+nrow(emer) # This will only show Police Department
+```
+
+    ## [1] 3097
+
+``` r
+emer <- sal %>% filter(
+  str_detect(Agency, "Police Department") |
+  str_detect(Agency, "Fire Department") |
+  str_detect(Agency, "Sheriff's Office"))
+nrow(emer) # This will show everything
+```
+
+    ## [1] 4922
+
+##### 17. Create a variable called `dept` in the emer data set.
+
+`dept = str_extract(Agency, ".*(ment|ice)")`. E.g. want to extract all
+characters up until `ment` or `ice` (we can group in `regex` using
+parentheses) and then discard the rest. Replot annual salary versus hire
+date, color by `dept` (not yet - using ggplot)
+
+``` r
+emer <- emer %>% mutate(dept = str_extract(
+  Agency, ".*(ment|ice)"))
+
+ggplot(emer, aes(HireDate, AnnualSalary, color=dept)) +
+  geom_point()
+```
+
+![](cleaning_files/figure-gfm/unnamed-chunk-26-1.png)<!-- -->
+
+##### 18. (Bonus). Convert the ‘LotSize’ variable to a numeric square feet variable in the tax data set.
+
+``` r
+tax$LotSize = str_trim(tax$LotSize) # trim to be safe
+lot = tax$LotSize
+
+# First lets take care of acres
+aIndex= which(str_detect(tax$LotSize, "AC.*") |
+               str_detect(tax$LotSize, fixed(" %")))
+print(head(aIndex))
+```
+
+    ## [1] 20 28 63 70 71 76
+
+``` r
+print(head(lot[aIndex]))
+```
+
+    ## [1] "0.491 ACRES" "0.025 ACRES" "0.278 ACRES" "0.067 ACRES" "0.024 ACRES"
+    ## [6] "0.271 ACRES"
+
+``` r
+acre = tax$LotSize[aIndex] # temporary variable
+## find and replace character strings
+acre = str_replace_all(acre, " AC.*","")
+acre = str_replace_all(acre, " %","")
+table(!is.na(as.numeric(acre)))
+```
+
+    ## 
+    ## FALSE  TRUE 
+    ##   236 18559
+
+``` r
+head(acre[is.na(as.numeric(acre))],50)
+```
+
+    ##  [1] "1-1383"         "5-25"           "1.914ACRES"     "2-364"         
+    ##  [5] "3-46"           "3-4"            "2-617"          "2-617"         
+    ##  [9] "2-617"          "4.574ACRES"     "1.423ACRES"     "2.460ACRES"    
+    ## [13] "3-94"           "2-456"          "2-24"           "1-36"          
+    ## [17] "21-8X5.5"       "0.047ACRES"     "0.067ACRES"     "0.045ACRES"    
+    ## [21] "16-509"         "2-657"          "1-379"          "2-158"         
+    ## [25] "1-81"           "13-112"         "2-2"            "IMP ONLY 0.190"
+    ## [29] "26,140"         "0.104ACRES"     "O.084"          "1-566"         
+    ## [33] "28-90"          "O-602"          "3-67"           "4-40"          
+    ## [37] "2-486"          "4-3165"         "O-0768"         "O-8577"        
+    ## [41] "8-956"          "18-425"         "9-265"          "1-371"         
+    ## [45] "3-436"          "2.00ACRES"      "8-974"          "2-36"          
+    ## [49] "1-788"          "1-005"
+
+``` r
+## lets clean the rest
+acre = str_replace_all(acre, "-",".") # hyphen instead of decimal
+head(acre[is.na(as.numeric(acre))])
+```
+
+    ## [1] "1.914ACRES" "4.574ACRES" "1.423ACRES" "2.460ACRES" "21.8X5.5"  
+    ## [6] "0.047ACRES"
+
+``` r
+table(!is.na(as.numeric(acre)))
+```
+
+    ## 
+    ## FALSE  TRUE 
+    ##    96 18699
+
+``` r
+acre = str_replace_all(acre, "ACRES","")
+head(acre[is.na(as.numeric(acre))])
+```
+
+    ## [1] "21.8X5.5"       "IMP ONLY 0.190" "26,140"         "O.084"         
+    ## [5] "O.602"          "O.0768"
+
+``` r
+# take care of individual mistakes
+acre = str_replace_all(acre, "O","0") # 0 vs O
+acre = str_replace_all(acre, "Q","") # Q, oops
+acre = str_replace_all(acre, ",.",".") # extra ,
+acre = str_replace_all(acre, ",","") # extra ,
+acre = str_replace_all(acre, "L","0") # leading L
+acre = str_replace_all(acre, "-",".") # hyphen to period
+acre[is.na(as.numeric(acre))]
+```
+
+    ## [1] "21.8X5.5"       "IMP 0N0Y 0.190" "IMP.0N0Y 3.615"
+
+``` r
+acre2 = as.numeric(acre)*43560 
+
+sum(is.na(acre2)) # all but 3
+```
+
+    ## [1] 3
+
+Now let’s convert all of the square feet variables
+
+``` r
+library(purrr)
+fIndex = which(str_detect(tax$LotSize, "X"))
+
+ft = tax$LotSize[fIndex]
+
+ft = str_replace_all(ft, fixed("&"), "-")
+ft = str_replace_all(ft, "IMP ONLY ", "")
+ft = str_replace_all(ft, "`","1")
+
+ft= map_chr(str_split(ft, " "), first)
+
+## now get the widths and lengths
+width = map_chr(str_split(ft,"X"), first)
+length = map_chr(str_split(ft,"X"), nth, 2) 
+
+## width
+widthFeet = as.numeric(map_chr(str_split(width, "-"), first))
+
+widthInch = as.numeric(map_chr(str_split(width, "-"),nth,2))/12
+widthInch[is.na(widthInch)] = 0 # when no inches present
+totalWidth = widthFeet + widthInch # add together
+
+# length
+lengthFeet = as.numeric(map_chr(str_split(length, "-"),first))
+lengthInch = as.numeric(map_chr(str_split(length, "-",2),nth,2))/12
+
+
+lengthInch[is.na(lengthInch)] = 0 # when no inches present
+totalLength = lengthFeet + lengthInch
+
+# combine together for square feet
+sqrtFt = totalWidth*totalLength 
+ft[is.na(sqrtFt)] # what is left?
+```
+
+    ##  [1] "12-3XX4-2"         "161X"              "Q8X120"           
+    ##  [4] "37-1X-60-10X57-11" "11XX0"             "M2X169-9"         
+    ##  [7] "X134"              "POINT"             "22-11"            
+    ## [10] "ASSESS"            "ASSESSCTY56-2X1-1" "ASSESSCTY53-2X1-1"
+    ## [13] "{1-4X128-6"        "O-7X125"           "13XX5"            
+    ## [16] "O-3X125"           "F7-10X80"          "N1-8X92-6"        
+    ## [19] "POINTX100-5X10"    "]7X100"            "16-11XX5"         
+    ## [22] "Q5X119"
+
+And now we combine everything together:
+
+``` r
+tax$sqft = rep(NA)
+tax$sqft[aIndex] = acre2
+tax$sqft[fIndex] = sqrtFt
+mean(!is.na(tax$sqft))
+```
+
+    ## [1] 0.934090928166
+
+``` r
+# already in square feet, easy!!
+sIndex=which(str_detect(tax$LotSize, "FT") | str_detect(tax$LotSize, "S.*F."))
+sf = tax$LotSize[sIndex] # subset temporary variable
+
+sqft2 = map_chr(str_split(sf,"( |SQ|SF)"),first)
+sqft2 = as.numeric(str_replace_all(sqft2, ",", "")) # remove , and convert
+
+tax$sqft[sIndex] = sqft2
+table(is.na(tax$sqft))
+```
+
+    ## 
+    ##  FALSE   TRUE 
+    ## 238105    193
+
+``` r
+## progress!
+#what remains?
+lot[is.na(tax$sqft)]
+```
+
+    ##   [1] NA                  "19520819"          "IMP ONLY"         
+    ##   [4] "IMP ONLY"          "IMPROVEMENTS ONLY" "IMPROVEMENTS ONLY"
+    ##   [7] "IMP ONLY"          "IMP ONLY"          NA                 
+    ##  [10] "0.016"             "0.230"             "IMP ONLY"         
+    ##  [13] "0.649"             "ASSESSMENT ONLY"   "IMPROVEMENT ONLY" 
+    ##  [16] "IMPROVEMENT ONLY"  "IMPROVEMENT ONLY"  "0.033"            
+    ##  [19] "IMPROVEMENT ONLY"  "IMPROVEMENT ONLY"  "IMPROVEMENTS ONLY"
+    ##  [22] "IMPROVEMENT ONLY"  "IMP ONLY"          "IMP ONLY 0.190 AC"
+    ##  [25] "IMP ONLY"          "AIR RIGHTS"        "IMP ONLY"         
+    ##  [28] "IMP ONLY"          "IMP ONLY"          "IMP ONLY"         
+    ##  [31] "IMP ONLY"          "13,846 SF"         NA                 
+    ##  [34] NA                  "0.067"             "IMP ONLY"         
+    ##  [37] "IMPROVEMENTS ONLY" "CO-57 (IMP ONLY)"  "IMP ONLY"         
+    ##  [40] "0.858"             "20080211"          "IMPROVEMENT ONLY" 
+    ##  [43] "12-3XX4-2"         "161X 137"          "IMP ONLY"         
+    ##  [46] "0.040"             "0.028"             "IMP ONLY"         
+    ##  [49] "IMP ONLY"          "IMP ONLY"          "IMP ONLY"         
+    ##  [52] "IMPROVEMENT ONLY"  "IMPROVEMENT ONLY"  "IMPROVEMENT ONLY" 
+    ##  [55] "IMPROVEMENT ONLY"  "0.681 ARCES"       "IMP ONLY"         
+    ##  [58] "IMP ONLY"          "IMP ONLY"          "IMPROVEMENT ONLY" 
+    ##  [61] "24179D096"         "Q8X120"            "REAR PART 697 S.F"
+    ##  [64] "IMP. ONLY"         "IMPROVEMENT ONLY"  "IMP ONLY"         
+    ##  [67] "37-1X-60-10X57-11" "IMP ONLY"          "68I.0 SQ FT"      
+    ##  [70] "0.024"             "01185"             "11979"            
+    ##  [73] "IMPROVEMENT ONLY"  "196552-8"          "AIR RIGHTS"       
+    ##  [76] "IMPROVEMENT ONLY"  "7,138 SF"          "9,745 SF"         
+    ##  [79] "13,772 SF"         "17,294 SF"         "15,745 SF"        
+    ##  [82] "0.030"             "18, 162 SF"        "0.036 ARES"       
+    ##  [85] "11XX0"             "0.026"             "IMPROVEMENT ONLY" 
+    ##  [88] "IMP ONLY"          "M2X169-9"          "IMPROVEMENT ONLY" 
+    ##  [91] "0.5404%"           "IMPROVEMENTS ONLY" "AIR RIGHTS"       
+    ##  [94] "AIR RIGHTS"        "AIR RIGHTS"        "2381437.2 CUBIC F"
+    ##  [97] "IMPROVEMENT ONLY"  "IMP ONLY"          "AIR RIGHTS ONLY"  
+    ## [100] "X134"              "IMPROVEMENT ONLY"  "AIR RIGHTS"       
+    ## [103] "\\560 S.F."        "1233.04"           NA                 
+    ## [106] NA                  "POINT X 57-9"      "IMPROVEMENTS ONLY"
+    ## [109] "22-11 X57"         "0.013"             "IMP.ONLY 3.615 AC"
+    ## [112] "IMP ONLY"          "IMP ONLY"          "0.129%"           
+    ## [115] "0.129%"            "0.129%"            "ASSESS CTY 84 S.F"
+    ## [118] "0.039"             "1159-0 S.F."       "03281969"         
+    ## [121] "IMPROVEMENT ONLY"  "ASSESS CTY 50 S.F" "ASSESS CTY 57X1-1"
+    ## [124] "IMP ONLY"          "ASSESSCTY56-2X1-1" "ASSESSCTY53-2X1-1"
+    ## [127] "IMPROVEMENT ONLY"  "{1-4X128-6"        "IMPROVEMENT ONLY" 
+    ## [130] "IMPROVEMENT ONLY"  "O-7X125"           NA                 
+    ## [133] "13XX5"             "O-3X125"           "IMPROVEMENT ONLY" 
+    ## [136] "IMP ONLY"          "AIR RIGHTS"        "0.026"            
+    ## [139] "0.129%"            "0.129%"            "IMPROVEMENT ONLY" 
+    ## [142] "F7-10X80"          "ASSESS CTY"        "IMP ONLY"         
+    ## [145] "IMP ONLY"          "IMP ONLY"          "IMP ONLY"         
+    ## [148] "IMPROVEMENTS ONLY" "IMPROVEMENT ONLY"  "0.032"            
+    ## [151] "20050712"          "IMP ONLY"          "IMP ONLY"         
+    ## [154] "0.033"             "IMP.ONLY"          "IMP ONLY"         
+    ## [157] "IMP ONLY"          "IMPROVEMENT ONLY"  "N1-8X92-6"        
+    ## [160] "POINTX100-5X10"    "IMPROVEMENTS ONLY" "]7X100"           
+    ## [163] "07031966"          "13O4 SQ FT"        "05081978"         
+    ## [166] "IMPROVEMENTS ONLY" "AIR RIGHTS"        "AIR RIGHTS"       
+    ## [169] "IMPROVEMENT ONLY"  "IMPROVEMENT ONLY"  "IMPROVEMENT ONLY" 
+    ## [172] "IMPROVEMENT ONLY"  "0.191 ARES"        "19815-4"          
+    ## [175] "11`79"             NA                  NA                 
+    ## [178] "IMPROVEMENT ONLY"  "IMP ONLY"          "194415"           
+    ## [181] "IMP ONLY"          "IMPROVEMENT ONLY"  "IMP ONLY"         
+    ## [184] "120-103"           "IMP ONLY"          "IMP. ONLY"        
+    ## [187] "196700"            "IMPROVEMENT ONLY"  "16-11XX5"         
+    ## [190] "Q5X119"            "21210"             "IMPROVEMENT ONLY" 
+    ## [193] "5306120"

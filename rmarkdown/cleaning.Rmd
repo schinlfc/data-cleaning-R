@@ -264,4 +264,143 @@ print(head(sal))
 ggplot(sal, aes(x=log(AnnualSalary))) + 
   geom_histogram(binwidth=0.3, color="darkblue",
   fill="lightblue")
+
+quantile(sal$AnnualSalary)
+```
+
+##### 15. Convert `HireDate` to the `Date` class - plot Annual Salary vs Hire Date. Use `AnnualSalary ~ HireDate` with a `data = sal` argument in plot or use x, y notation in `scatter.smooth`
+Use `lubridate` package.  Is it `mdy(date)` or `dmy(date)` for this data - look at `HireDate`
+```{r, warning=FALSE, message=FALSE}
+sal <- sal %>% mutate(HireDate = lubridate::mdy(HireDate))
+
+ggplot(sal, aes(HireDate, AnnualSalary)) +
+  geom_point() +
+  geom_smooth(method="auto", se=TRUE, fullrange=FALSE,
+  level=0.95)
+```
+
+##### 16. Create a smaller dataset that only includes the Police Department,  Fire Department and Sheriff's Office.  Use the Agency variable with string matching. Call this `emer`.  How many employees are in this new dataset?
+```{r, warning=FALSE, message=FALSE}
+emer <- sal %>% filter(str_detect(
+  Agency, "Police Department | Fire Department | 
+  Sheriff's Office"))
+nrow(emer) # This will only show Police Department
+
+emer <- sal %>% filter(
+  str_detect(Agency, "Police Department") |
+  str_detect(Agency, "Fire Department") |
+  str_detect(Agency, "Sheriff's Office"))
+nrow(emer) # This will show everything
+```
+
+##### 17. Create a variable called `dept` in the emer data set.
+`dept = str_extract(Agency, ".*(ment|ice)")`.  E.g. want to extract all characters up until `ment` or `ice` (we can group in `regex` using parentheses) and then discard the rest. Replot annual salary versus hire date, color by `dept` (not yet - using ggplot)
+```{r, warning=FALSE, message=FALSE}
+emer <- emer %>% mutate(dept = str_extract(
+  Agency, ".*(ment|ice)"))
+
+ggplot(emer, aes(HireDate, AnnualSalary, color=dept)) +
+  geom_point()
+```
+
+##### 18. (Bonus). Convert the 'LotSize' variable to a numeric square feet variable in the tax data set.
+```{r, warning=FALSE, message=FALSE}
+tax$LotSize = str_trim(tax$LotSize) # trim to be safe
+lot = tax$LotSize
+
+# First lets take care of acres
+aIndex= which(str_detect(tax$LotSize, "AC.*") |
+               str_detect(tax$LotSize, fixed(" %")))
+print(head(aIndex))
+
+print(head(lot[aIndex]))
+
+acre = tax$LotSize[aIndex] # temporary variable
+## find and replace character strings
+acre = str_replace_all(acre, " AC.*","")
+acre = str_replace_all(acre, " %","")
+table(!is.na(as.numeric(acre)))
+
+head(acre[is.na(as.numeric(acre))],50)
+
+## lets clean the rest
+acre = str_replace_all(acre, "-",".") # hyphen instead of decimal
+head(acre[is.na(as.numeric(acre))])
+
+table(!is.na(as.numeric(acre)))
+
+acre = str_replace_all(acre, "ACRES","")
+head(acre[is.na(as.numeric(acre))])
+
+# take care of individual mistakes
+acre = str_replace_all(acre, "O","0") # 0 vs O
+acre = str_replace_all(acre, "Q","") # Q, oops
+acre = str_replace_all(acre, ",.",".") # extra ,
+acre = str_replace_all(acre, ",","") # extra ,
+acre = str_replace_all(acre, "L","0") # leading L
+acre = str_replace_all(acre, "-",".") # hyphen to period
+acre[is.na(as.numeric(acre))]
+
+acre2 = as.numeric(acre)*43560 
+
+sum(is.na(acre2)) # all but 3
+```
+
+Now let’s convert all of the square feet variables
+```{r, warning=FALSE, message=FALSE}
+library(purrr)
+fIndex = which(str_detect(tax$LotSize, "X"))
+
+ft = tax$LotSize[fIndex]
+
+ft = str_replace_all(ft, fixed("&"), "-")
+ft = str_replace_all(ft, "IMP ONLY ", "")
+ft = str_replace_all(ft, "`","1")
+
+ft= map_chr(str_split(ft, " "), first)
+
+## now get the widths and lengths
+width = map_chr(str_split(ft,"X"), first)
+length = map_chr(str_split(ft,"X"), nth, 2) 
+
+## width
+widthFeet = as.numeric(map_chr(str_split(width, "-"), first))
+
+widthInch = as.numeric(map_chr(str_split(width, "-"),nth,2))/12
+widthInch[is.na(widthInch)] = 0 # when no inches present
+totalWidth = widthFeet + widthInch # add together
+
+# length
+lengthFeet = as.numeric(map_chr(str_split(length, "-"),first))
+lengthInch = as.numeric(map_chr(str_split(length, "-",2),nth,2))/12
+
+
+lengthInch[is.na(lengthInch)] = 0 # when no inches present
+totalLength = lengthFeet + lengthInch
+
+# combine together for square feet
+sqrtFt = totalWidth*totalLength 
+ft[is.na(sqrtFt)] # what is left?
+```
+
+And now we combine everything together:
+```{r, warning=FALSE, message=FALSE}
+tax$sqft = rep(NA)
+tax$sqft[aIndex] = acre2
+tax$sqft[fIndex] = sqrtFt
+mean(!is.na(tax$sqft))
+
+# already in square feet, easy!!
+sIndex=which(str_detect(tax$LotSize, "FT") | str_detect(tax$LotSize, "S.*F."))
+sf = tax$LotSize[sIndex] # subset temporary variable
+
+sqft2 = map_chr(str_split(sf,"( |SQ|SF)"),first)
+sqft2 = as.numeric(str_replace_all(sqft2, ",", "")) # remove , and convert
+
+tax$sqft[sIndex] = sqft2
+table(is.na(tax$sqft))
+
+## progress!
+#what remains?
+lot[is.na(tax$sqft)]
 ```
