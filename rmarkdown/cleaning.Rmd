@@ -2,11 +2,7 @@
 title: "Data Cleaning in R"
 author: "Sayorn Chin"
 date: "06/09/2021"
-output:
-  github_document:
-    df_print: paged
-editor_options:
-  chunk_output_type: console
+output: rmarkdown::github_document
 ---
 
 
